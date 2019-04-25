@@ -63,7 +63,7 @@ def findCenters(cones):
 # Replay mode: CID = 253
 # Live mode: CID = 112
 # TODO: Change to CID 112 when this program is used on Kiwi.
-session = OD4Session.OD4Session(cid=253)
+session = OD4Session.OD4Session(cid=112)
 # Register a handler for a message; the following example is listening
 # for messageID 1039 which represents opendlv.proxy.DistanceReading.
 # Cf. here: https://github.com/chalmers-revere/opendlv.standard-message-set/blob/master/opendlv.odvd#L113-L115
@@ -84,8 +84,8 @@ keySemCondition = sysv_ipc.ftok(name, 3, True)
 shm = sysv_ipc.SharedMemory(keySharedMemory)
 mutex = sysv_ipc.Semaphore(keySemCondition)
 cond = sysv_ipc.Semaphore(keySemCondition)
-lower_blue= numpy.array([97,190,40])
-upper_blue= numpy.array([130,255,255])
+lower_blue= numpy.array([100,100,30])
+upper_blue= numpy.array([150,255,255])
 
 lower_yellow= numpy.array([23,41,133])
 upper_yellow= numpy.array([40,150,255])
@@ -109,6 +109,8 @@ while True:
 
     # Turn buf into img array (640 * 480 * 4 bytes (ARGB)) to be used with OpenCV.
     img = numpy.frombuffer(buf, numpy.uint8).reshape(480, 640, 4)
+    #change coord
+    img = img[200:320, 100:640]
     hsv=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
     ############################################################################
@@ -118,18 +120,17 @@ while True:
 
     #remove noise using erode and dilate for yellow and blue filter
     kernel=numpy.ones((2,2),numpy.uint8)
-    blueCones=cv2.erode(identyfiedConesBlue,kernel,iterations=1)
-    blueCones=cv2.dilate(blueCones,kernel,iterations=1)
-    kernel=numpy.ones((3,3),numpy.uint8)
-    blueCones=cv2.erode(blueCones,kernel,iterations=2)
-    blueCones=cv2.dilate(blueCones,kernel,iterations=1)
-
+    blueCones=cv2.erode(identyfiedConesBlue,kernel,iterations=6)
+    kernel=numpy.ones((5,5),numpy.uint8)
+    blueCones=cv2.dilate(blueCones,kernel,iterations=6)
+    
 
     kernel=numpy.ones((2,2),numpy.uint8)
     yellowCones=cv2.erode(identyfiedConesYellow,kernel,iterations=1)
-    yellowCones=cv2.dilate(yellowCones,kernel,iterations=1)
+    yellowCones=cv2.dilate(yellowCones,kernel,iterations=2)
     kernel=numpy.ones((3,3),numpy.uint8)
-    yellowCones=cv2.erode(yellowCones,kernel,iterations=2)
+    yellowCones=cv2.erode(yellowCones,kernel,iterations=1)
+    kernel=numpy.ones((5,5),numpy.uint8)
     yellowCones=cv2.dilate(yellowCones,kernel,iterations=1)
 
     #use home constructed mothod to find center of each object identified
@@ -137,19 +138,19 @@ while True:
     blueCenters=findCenters(blueCones)
 
 
-    #sort to see which object is clsoes
+    #sort to see which object is closes
 
     sortedBlueCenter=sorted(blueCenters, key=lambda x: x[1], reverse= True)
     sortedYellowCenter=sorted(yellowCenters,key=lambda x: x[1], reverse=True)
 
-    if len(sortedBlueCenter) > 0:
+    if len(blueCenters) > 0:
      closestBlue=sortedBlueCenter[0]
     else: 
-     closestBlue=(700,700)
-    if len(sortedYellowCenter) >0:
+     closestBlue=(80,430)
+    if len(yellowCenters) >0:
      closestYellow=sortedYellowCenter[0]
     else:
-     closestYellow=(0,0)
+     closestYellow=(30,430)
 
 	
     res= cv2.add(yellowCones,blueCones)
@@ -157,14 +158,32 @@ while True:
 
     # The following example is adding a red rectangle and displaying the result.
     #plot closest object to see that the method works
-    cv2.circle(res, (closestBlue[0],closestBlue[1]), 3, (0,0,255), -1)
-    cv2.circle(res, (closestYellow[0],closestYellow[1]), 3, (0,0,255), -1)
+    cv2.circle(res, (closestBlue[0],closestBlue[1]), 18, (255,150,255), -1)
+    cv2.circle(res, (closestYellow[0],closestYellow[1]), 18, (255,150,255), -1)
+
+    position_x=120-(closestYellow[0]+closestBlue[0])/2
+    position_y=540-(closestYellow[1]+closestBlue[1])/2
+    diagonal=numpy.sqrt(position_x**2+position_y**2)
+    angle=numpy.arcsin(position_x/diagonal)
+
+    lineThickness = 2
+    cv2.line(res, (60,540),(position_x,position_y),(255,150,255),lineThickness)
+    font= cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
+
+
 
     #TODO: take the coordinates for the closest objects (x-coordinate) and calculate the angle which the car should drive. Also adjust the speed correctly
 
     # TODO: Disable the following two lines before running on Kiwi:
-    cv2.imshow("image", res);
-    cv2.waitKey(2);
+    #cv2.imshow("image", res);
+    #cv2.waitKey(2);
+
+	
+
+    
+    
+    
 
     ############################################################################
     # Example: Accessing the distance readings.
@@ -187,13 +206,29 @@ while True:
     #
     # Uncomment the following lines to steer; range: +38deg (left) .. -38deg (right).
     # Value groundSteeringRequest.groundSteering must be given in radians (DEG/180. * PI).
-    #groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
-    #groundSteeringRequest.groundSteering = 0
-    #session.send(1090, groundSteeringRequest.SerializeToString());
+    
+    maximumDegree=20/180. *PI
+    steering_angle=angle
+    if angle > 0 && angle> maximumDegree:
+     steering_angle=maximumDegree
 
+    if angle <0 && angle < -maximumDegree:
+     steering_angle=-maximumDegree
+
+	if distances["front"] < 0.03:
+      steering_angles=0
+
+    groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
+    groundSteeringRequest.groundSteering = steering_angle
+    session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
-    # Be careful!
     #pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
-    #pedalPositionRequest.position = 0
-    #session.send(1086, pedalPositionRequest.SerializeToString());
+    
+     if distances["front"] < 0.03:
+      pedalPositionRequest.position=0
+     else:
+     pedalPositionRequest.position = 0.11
+	
+    
+    session.send(1086, pedalPositionRequest.SerializeToString()); """
 
