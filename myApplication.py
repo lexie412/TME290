@@ -164,22 +164,14 @@ while True:
     position_x=120-(closestYellow[0]+closestBlue[0])/2
     position_y=540-(closestYellow[1]+closestBlue[1])/2
     diagonal=numpy.sqrt(position_x**2+position_y**2)
-    angle=numpy.arcsin(position_x/diagonal)
+    angle=numpy.arctan(position_x/diagonal)
 
     lineThickness = 2
     cv2.line(res, (60,540),(position_x,position_y),(255,150,255),lineThickness)
     font= cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
 
 
 
-    #TODO: take the coordinates for the closest objects (x-coordinate) and calculate the angle which the car should drive. Also adjust the speed correctly
-
-    # TODO: Disable the following two lines before running on Kiwi:
-    cv2.imshow("image", res);
-    cv2.waitKey(2);
-
-	
 
     
     
@@ -193,13 +185,6 @@ while True:
     print "Rear = " + str(distances["rear"])
 
     ############################################################################
-    # Example for creating and sending a message to other microservices; can
-    # be removed when not needed.
-    angleReading = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_AngleReading()
-    angleReading.angle = 123.45
-
-    # 1038 is the message ID for opendlv.proxy.AngleReading
-    session.send(1038, angleReading.SerializeToString());
 
     ############################################################################
     # Steering and acceleration/decelration.
@@ -207,19 +192,23 @@ while True:
     # Uncomment the following lines to steer; range: +38deg (left) .. -38deg (right).
     # Value groundSteeringRequest.groundSteering must be given in radians (DEG/180. * PI).
     
-    """ maximumDegree=20/180*3.1415
-    steering_angle=angle
+    maximumDegree=(20.0/180.0)*3.1415
+
     if angle > 0 and angle> maximumDegree:
-     steering_angle=maximumDegree
+     angle=maximumDegree
 
     if angle <0 and angle < -maximumDegree:
-     steering_angle=-maximumDegree
+      angle=-maximumDegree
 
     if distances["front"] < 0.03:
-      steering_angles=0
+      angle=0
 
+    cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
+    cv2.imshow("image", res);
+    cv2.waitKey(2);
+    """
     groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
-    groundSteeringRequest.groundSteering = steering_angle
+    groundSteeringRequest.groundSteering = angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
     pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
@@ -228,6 +217,8 @@ while True:
       pedalPositionRequest.position=0
     else:
      pedalPositionRequest.position = 0.11
+
+
 	
     
     session.send(1086, pedalPositionRequest.SerializeToString()); """
