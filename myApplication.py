@@ -176,8 +176,8 @@ while True:
     #TODO: take the coordinates for the closest objects (x-coordinate) and calculate the angle which the car should drive. Also adjust the speed correctly
 
     # TODO: Disable the following two lines before running on Kiwi:
-    #cv2.imshow("image", res);
-    #cv2.waitKey(2);
+    cv2.imshow("image", res);
+    cv2.waitKey(2);
 
 	
 
@@ -207,26 +207,26 @@ while True:
     # Uncomment the following lines to steer; range: +38deg (left) .. -38deg (right).
     # Value groundSteeringRequest.groundSteering must be given in radians (DEG/180. * PI).
     
-    maximumDegree=20/180. *PI
+    """ maximumDegree=20/180*3.1415
     steering_angle=angle
-    if angle > 0 && angle> maximumDegree:
+    if angle > 0 and angle> maximumDegree:
      steering_angle=maximumDegree
 
-    if angle <0 && angle < -maximumDegree:
+    if angle <0 and angle < -maximumDegree:
      steering_angle=-maximumDegree
 
-	if distances["front"] < 0.03:
+    if distances["front"] < 0.03:
       steering_angles=0
 
     groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
     groundSteeringRequest.groundSteering = steering_angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
-    #pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
+    pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
     
-     if distances["front"] < 0.03:
+    if distances["front"] < 0.03:
       pedalPositionRequest.position=0
-     else:
+    else:
      pedalPositionRequest.position = 0.11
 	
     
