@@ -58,21 +58,23 @@ def findCenters(cones):
 
 
 def keepDistance(distance, speed):
-	optimalDistance=0.3
+	optimalDistance=0.4
 	originalSpeed=0.11
-	detectionDistance=0.4
+	detectionDistance=0.5
 	if distance <= detectionDistance:
-		if distance <= optimalDistance and speed >=0.2:
-			speed=speed+0.01
-		else: 
-			speed=originalSpeed-0.01
+		if distance <= optimalDistance-0.03 and speed >=0.2:
+			speed=speed-0.01
+		elif distance >= optimalDistance+0.03 and speed <= 0.15: 
+			speed=originalSpeed+0.01
 	else:
 		speed=originalSpeed
 
- 
+	return speed
+
+prevAngle=0
 fgbg=cv2.createBackgroundSubtractorMOG2(history=10,varThreshold=2,detectShadows=False)
-minX=200
-maxX=320
+minX=220
+maxX=300
 minY=170
 maxY=640
 
@@ -138,30 +140,30 @@ while True:
     identyfiedConesYellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
     #remove noise using erode and dilate for yellow and blue filter
-    #kernel=numpy.ones((3,3),numpy.uint8)
-    #blueCones=cv2.erode(identyfiedConesBlue,kernel,iterations=1)
     kernel=numpy.ones((5,5),numpy.uint8)
-    blueCones=cv2.dilate(identyfiedConesBlue,kernel,iterations=1)
+    blueCones=cv2.dilate(identyfiedConesBlue,kernel,iterations=2)
+    #kernel=numpy.ones((5,5),numpy.uint8)
+    #blueCones=cv2.dilate(blueCones,kernel,iterations=1 )
     #blueCones=cv2.Canny(identyfiedConesBlue,400,450)
     #kernel=numpy.ones((15,15),numpy.uint8)
     #blueCones=cv2.morphologyEx(blueCones,cv2.MORPH_CLOSE,kernel)
     
 
-    kernel=numpy.ones((2,2),numpy.uint8)
-    yellowCones=cv2.erode(identyfiedConesYellow,kernel,iterations=1)
-    yellowCones=cv2.dilate(yellowCones,kernel,iterations=2)
-    kernel=numpy.ones((3,3),numpy.uint8)
-    yellowCones=cv2.erode(yellowCones,kernel,iterations=1)
     kernel=numpy.ones((5,5),numpy.uint8)
-    yellowCones=cv2.dilate(yellowCones,kernel,iterations=1)
+    #yellowCones=cv2.erode(identyfiedConesYellow,kernel,iterations=1)
+    yellowCones=cv2.dilate(identyfiedConesYellow,kernel,iterations=1)
+    #kernel=numpy.ones((3,3),numpy.uint8)
+    #yellowCones=cv2.erode(yellowCones,kernel,iterations=1)
+    #kernel=numpy.ones((5,5),numpy.uint8)
+    #yellowCones=cv2.dilate(yellowCones,kernel,iterations=1)
 
     #use Canny edge detection
     #edgeImage=cv2.Canny(imgCannyCopy,200,400)
 
     #use morphology
-    """edgeImage=cv2.Canny(imgCannyCopy,400,450)
+    edgeImage=cv2.Canny(imgCannyCopy,400,450)
     kernel=numpy.ones((15,15),numpy.uint8)
-    edgeImage=cv2.morphologyEx(edgeImage,cv2.MORPH_CLOSE,kernel)"""
+    edgeImage=cv2.morphologyEx(edgeImage,cv2.MORPH_CLOSE,kernel)
 
     #use foreground extraction 
     """
@@ -184,14 +186,14 @@ while True:
     elif len(blueCenters) > 0:
      closestBlue=sortedBlueCenter[0]
     else: 
-     closestBlue=(90,430)
+     closestBlue=(100,430)
 
     if len(yellowCenters) >1:
      closestYellow=sortedYellowCenter[1]
-    if len(yellowCenters) >0:
+    elif len(yellowCenters) >0:
      closestYellow=sortedYellowCenter[0]
     else:
-     closestYellow=(30,430)
+     closestYellow=(20,430)
 
     
 	
@@ -200,11 +202,11 @@ while True:
 
     # The following example is adding a red rectangle and displaying the result.
     #plot closest object to see that the method works
-    cv2.circle(res, (closestBlue[0],closestBlue[1]), 18, (255,150,255), -1)
-    cv2.circle(res, (closestYellow[0],closestYellow[1]), 18, (255,150,255), -1)
+    #cv2.circle(res, (closestBlue[0],closestBlue[1]), 18, (255,150,255), -1)
+    #cv2.circle(res, (closestYellow[0],closestYellow[1]), 18, (255,150,255), -1)
 
-    position_x=120-(closestYellow[0]+closestBlue[0])/2
-    position_y=540-(closestYellow[1]+closestBlue[1])/2
+    position_x=(closestYellow[0]+closestBlue[0])/2
+    position_y=(closestYellow[1]+closestBlue[1])/2
     diagonal=numpy.sqrt(position_x**2+position_y**2)
     angle=numpy.arcsin(position_x/diagonal)
 
@@ -213,10 +215,10 @@ while True:
     font= cv2.FONT_HERSHEY_SIMPLEX
 
    #find and mark coordiante to object
-    """ edgeImageCroped=edgeImage[closestYellow[0]+30:closestBlue[0]-30, 1:maxY]
+    edgeImageCroped=edgeImage[closestYellow[0]+30:closestBlue[0]-30, 1:maxY]
     closeCars=findCenters(edgeImageCroped)
     sortedCloseCars=sorted(closeCars,key=lambda x: x[1], reverse=True)
-    if len(sortedCloseCars) > 0:
+    """ if len(sortedCloseCars) > 0:
      closestCar=sortedCloseCars[0]
      cv2.circle(edgeImage, (closestYellow[0]+30+closestCar[0],closestCar[1]), 18, (255,150,255), -1)"""
 
@@ -240,7 +242,7 @@ while True:
     # Uncomment the following lines to steer; range: +38deg (left) .. -38deg (right).
     # Value groundSteeringRequest.groundSteering must be given in radians (DEG/180. * PI).
     
-    maximumDegree=(20.0/180.0)*3.1415
+    maximumDegree=0.2
 
     if angle > 0 and angle> maximumDegree:
      angle=maximumDegree
@@ -248,15 +250,16 @@ while True:
     if angle <0 and angle < -maximumDegree:
       angle=-maximumDegree
 
-    if distances["front"] < 0.03:
+    if distances["front"] < 0.05:
       angle=0
 
-    """"cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
+    """ cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
     cv2.imshow("image", res);
     cv2.waitKey(2);"""
     
     groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
-    groundSteeringRequest.groundSteering = angle
+    groundSteeringRequest.groundSteering =0.7*2*(0.2*angle+0.8*prevAngle)
+    prevAngle=angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
     pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
@@ -264,15 +267,15 @@ while True:
     """
     if distances["front"] < 0.03:
       pedalPositionRequest.position=0
-    elif distances["front"] <=0.4:
+    elif distances["front"] >=0.8:
       if len(sortedCloseCars) > 0:
         carSpeed=keepDistance(distances["front"],carSpeed)
         pedalPositionRequest.position=carSpeed
       else:
-        pedalPositionRequest.position = 0.11"""
+        pedalPositionRequest.position = 0.11
 
-
-    if distances["front"] < 0.03:
+    """
+    if distances["front"] < 0.05:
       pedalPositionRequest.position=0
     else:
         pedalPositionRequest.position = 0.11
