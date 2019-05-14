@@ -58,26 +58,30 @@ def findCenters(cones):
 
 
 def keepDistance(distance, speed):
-	optimalDistance=0.4
-	originalSpeed=0.11
+	optimalDistance=0.3
+	originalSpeed=0.09
 	detectionDistance=0.5
 	if distance <= detectionDistance:
-		if distance <= optimalDistance-0.03 and speed >=0.2:
+		if distance <= optimalDistance-0.03 and speed >=0.04:
 			speed=speed-0.01
-		elif distance >= optimalDistance+0.03 and speed <= 0.15: 
-			speed=originalSpeed+0.01
+                        #speed=0
+		#elif distance >= optimalDistance+0.03 and speed <=originalSpeed:
+		#	speed=speed+0.005
+			
 	else:
 		speed=originalSpeed
 
 	return speed
 
-prevAngle=0
+ 
 fgbg=cv2.createBackgroundSubtractorMOG2(history=10,varThreshold=2,detectShadows=False)
-minX=220
-maxX=300
+minX=280
+maxX=360
 minY=170
-maxY=640
-
+maxY=480
+difference=maxX-minX
+differenceY=maxY-minY
+prevAngle=0
 # Create a session to send and receive messages from a running OD4Session;
 # Replay mode: CID = 253
 # Live mode: CID = 112
@@ -108,7 +112,16 @@ upper_blue= numpy.array([150,255,255])
 
 lower_yellow= numpy.array([23,41,133])
 upper_yellow= numpy.array([40,150,255])
-carSpeed=0.11
+
+
+#lower_orange=numpy.array([])
+#upper_orange=numpy.array([])
+
+carSpeed=0.09
+
+noYellow=0
+noBlue=0
+middlePoint=difference*0.5
 ################################################################################
 # Main loop to process the next image frame coming in.
 while True:
@@ -132,30 +145,25 @@ while True:
     #change coord
     img = img[minX:maxX, minY:maxY]
     hsv=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # cv2.rectangle(hsv,(200,640),(340,470),(0,0,255),2)
     imgCannyCopy=img
 
     ############################################################################
     # Use color filter to find blue and yellow cones
     identyfiedConesBlue = cv2.inRange(hsv, lower_blue, upper_blue)
     identyfiedConesYellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
-
+    #identyfiedConesOrange =cv2.inRange(hsv, lower_orange, upper_orange)
     #remove noise using erode and dilate for yellow and blue filter
+ 
     kernel=numpy.ones((5,5),numpy.uint8)
-    blueCones=cv2.dilate(identyfiedConesBlue,kernel,iterations=2)
-    #kernel=numpy.ones((5,5),numpy.uint8)
-    #blueCones=cv2.dilate(blueCones,kernel,iterations=1 )
-    #blueCones=cv2.Canny(identyfiedConesBlue,400,450)
-    #kernel=numpy.ones((15,15),numpy.uint8)
-    #blueCones=cv2.morphologyEx(blueCones,cv2.MORPH_CLOSE,kernel)
-    
+    blueCones=cv2.dilate(identyfiedConesBlue,kernel,iterations=1)
+
 
     kernel=numpy.ones((5,5),numpy.uint8)
-    #yellowCones=cv2.erode(identyfiedConesYellow,kernel,iterations=1)
     yellowCones=cv2.dilate(identyfiedConesYellow,kernel,iterations=1)
-    #kernel=numpy.ones((3,3),numpy.uint8)
-    #yellowCones=cv2.erode(yellowCones,kernel,iterations=1)
-    #kernel=numpy.ones((5,5),numpy.uint8)
-    #yellowCones=cv2.dilate(yellowCones,kernel,iterations=1)
+
+
+    #orangeCones=cv2.dilate(identyfiedConesOrange,kernel, iterations =1)
 
     #use Canny edge detection
     #edgeImage=cv2.Canny(imgCannyCopy,200,400)
@@ -165,11 +173,6 @@ while True:
     kernel=numpy.ones((15,15),numpy.uint8)
     edgeImage=cv2.morphologyEx(edgeImage,cv2.MORPH_CLOSE,kernel)
 
-    #use foreground extraction 
-    """
-    edgeImage=cv2.cvtColor(imgCannyCopy,cv2.COLOR_BGR2GRAY)
-    edgeImage=cv2.bilateralFilter(edgeImage,4,250,250)
-    edgeImage=fgbg.apply(edgeImage)"""
 
     #use home constructed mothod to find center of each object identified
     yellowCenters=findCenters(yellowCones)
@@ -181,19 +184,22 @@ while True:
     sortedBlueCenter=sorted(blueCenters, key=lambda x: x[1], reverse= True)
     sortedYellowCenter=sorted(yellowCenters,key=lambda x: x[1], reverse=True)
 
-    if len(blueCenters) >1:
-     closestBlue=sortedBlueCenter[1]
-    elif len(blueCenters) > 0:
+    #if len(blueCenters) >1:
+     #closestBlue=sortedBlueCenter[1]
+    if len(blueCenters) > 0:
      closestBlue=sortedBlueCenter[0]
     else: 
-     closestBlue=(100,430)
+     closestBlue=(60,differenceY)
+     noBlue=1
 
-    if len(yellowCenters) >1:
-     closestYellow=sortedYellowCenter[1]
-    elif len(yellowCenters) >0:
+    #if len(yellowCenters) >1:
+     #closestYellow=sortedYellowCenter[1]
+    if len(yellowCenters) >0:
      closestYellow=sortedYellowCenter[0]
     else:
-     closestYellow=(20,430)
+     closestYellow=(20,differenceY)
+     noYellow=1
+    
 
     
 	
@@ -202,17 +208,45 @@ while True:
 
     # The following example is adding a red rectangle and displaying the result.
     #plot closest object to see that the method works
-    #cv2.circle(res, (closestBlue[0],closestBlue[1]), 18, (255,150,255), -1)
-    #cv2.circle(res, (closestYellow[0],closestYellow[1]), 18, (255,150,255), -1)
+    # cv2.circle(res, (closestBlue[0],closestBlue[1]), 18, (255,150,255), -1)
+    # cv2.circle(res, (closestYellow[0],closestYellow[1]), 18, (255,150,255), -1)
 
-    position_x=(closestYellow[0]+closestBlue[0])/2
-    position_y=(closestYellow[1]+closestBlue[1])/2
-    diagonal=numpy.sqrt(position_x**2+position_y**2)
-    angle=numpy.arcsin(position_x/diagonal)
+    #position_x=(closestBlue[0]-closestYellow[0])*0.5
+    #position_y=(closestBlue[1]-closestYellow[1])*0.5
 
-    lineThickness = 2
-    cv2.line(res, (maxX/2,maxY),(position_x,position_y),(255,150,255),lineThickness)
-    font= cv2.FONT_HERSHEY_SIMPLEX
+    position_x=(closestYellow[0]-closestBlue[0])*0.5
+    position_y=(closestYellow[1]-closestBlue[1])*0.5
+
+
+    if numpy.absolute(position_y) > 0.05:
+     diagonal=numpy.sqrt(position_x**2+position_y**2)
+     angle=3.1415*0.5-numpy.arctan2(position_x,position_y)
+    else:
+     angle=0.0
+
+
+
+
+    #if only one cone if found 
+    """if noYellow +noBlue ==1:
+      if noYellow=1:
+        numerator=middlePoint*closestBlue[0]
+        denominator=numpy.sqrt(closestBlue[0]**2+middlePoint**2)*closestBlue[1]
+        angle=numpy.arccos(numerator/denominator)*0.5
+      else:
+        numerator=middlePoint*closestYellow[0]
+        denominator=numpy.sqrt(closestYellow[0]**2+middlePoint**2)*closestYellow[1]
+        angle=numpy.arccos(numerator/denominator)*0.5"""
+
+
+    noYellow=0
+    noBlue=0
+
+
+
+    # lineThickness = 2
+    # cv2.line(res, (maxX/2,maxY),(position_x,position_y),(255,150,255),lineThickness)
+    # font= cv2.FONT_HERSHEY_SIMPLEX
 
    #find and mark coordiante to object
     edgeImageCroped=edgeImage[closestYellow[0]+30:closestBlue[0]-30, 1:maxY]
@@ -251,34 +285,37 @@ while True:
       angle=-maximumDegree
 
     if distances["front"] < 0.05:
-      angle=0
+      angle=0.00
 
     """ cv2.putText(res,'Angle='+str(angle),(200,20),font,1,(255,255,255),2,cv2.LINE_AA)
     cv2.imshow("image", res);
     cv2.waitKey(2);"""
     
     groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
-    groundSteeringRequest.groundSteering =0.7*2*(0.2*angle+0.8*prevAngle)
+    #groundSteeringRequest.groundSteering=0
+    #error=(numpy.absolute(angle)/maximumDegree)
+    error=0.5
+    groundSteeringRequest.groundSteering =error*(0.3*angle+0.7*prevAngle)
     prevAngle=angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
     pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
     
-    """
+    
     if distances["front"] < 0.03:
       pedalPositionRequest.position=0
-    elif distances["front"] >=0.8:
-      if len(sortedCloseCars) > 0:
+    elif distances["front"] < 0.8:
+      #if len(sortedCloseCars) > 0:
         carSpeed=keepDistance(distances["front"],carSpeed)
         pedalPositionRequest.position=carSpeed
-      else:
-        pedalPositionRequest.position = 0.11
+    else:
+        pedalPositionRequest.position = carSpeed
 
     """
     if distances["front"] < 0.05:
       pedalPositionRequest.position=0
     else:
-        pedalPositionRequest.position = 0.11
-    
+        pedalPositionRequest.position = 0.09
+    """
     session.send(1086, pedalPositionRequest.SerializeToString());
 
