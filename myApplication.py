@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python2
 
 # Copyright (C) 2018 Christian Berger
@@ -78,7 +79,7 @@ fgbg=cv2.createBackgroundSubtractorMOG2(history=10,varThreshold=2,detectShadows=
 minX=280
 maxX=360
 minY=170
-maxY=480
+maxY=470
 difference=maxX-minX
 differenceY=maxY-minY
 prevAngle=0
@@ -114,8 +115,8 @@ lower_yellow= numpy.array([23,41,133])
 upper_yellow= numpy.array([40,150,255])
 
 
-#lower_orange=numpy.array([])
-#upper_orange=numpy.array([])
+lower_orange=numpy.array([3,100,20])
+upper_orange=numpy.array([6,255,255])
 
 carSpeed=0.09
 
@@ -143,8 +144,15 @@ while True:
     # Turn buf into img array (640 * 480 * 4 bytes (ARGB)) to be used with OpenCV.
     img = numpy.frombuffer(buf, numpy.uint8).reshape(480, 640, 4)
     #change coord
+    imgCopy=img
+    imgOrangeConeLeft=imgCopy[minX:minX+difference/2,minY:maxY]
+    imgOrangeConeRight=imgCopy[minX+difference/2:maxX, minY:maxY]
+
     img = img[minX:maxX, minY:maxY]
+
     hsv=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hsvLeft=cv2.cvtColor(imgOrangeConeLeft, cv2.COLOR_BGR2HSV)
+    hsvRight=cv2.cvtColor(imgOrangeConeRight, cv2.COLOR_BGR2HSV)
     # cv2.rectangle(hsv,(200,640),(340,470),(0,0,255),2)
     imgCannyCopy=img
 
@@ -152,7 +160,8 @@ while True:
     # Use color filter to find blue and yellow cones
     identyfiedConesBlue = cv2.inRange(hsv, lower_blue, upper_blue)
     identyfiedConesYellow = cv2.inRange(hsv, lower_yellow, upper_yellow)
-    #identyfiedConesOrange =cv2.inRange(hsv, lower_orange, upper_orange)
+    identyfiedConesOrangeLeft =cv2.inRange(hsvLeft, lower_orange, upper_orange)
+    identyfiedConesOrangeRight =cv2.inRange(hsvRight, lower_orange, upper_orange)
     #remove noise using erode and dilate for yellow and blue filter
  
     kernel=numpy.ones((5,5),numpy.uint8)
@@ -161,7 +170,8 @@ while True:
 
     kernel=numpy.ones((5,5),numpy.uint8)
     yellowCones=cv2.dilate(identyfiedConesYellow,kernel,iterations=1)
-
+    orangeConesLeft=cv2.dilate(identyfiedConesOrangeLeft,kernel, iterations =1)
+    orangeConesRight=cv2.dilate(identyfiedConesOrangeRight,kernel, iterations =1)
 
     #orangeCones=cv2.dilate(identyfiedConesOrange,kernel, iterations =1)
 
@@ -177,32 +187,46 @@ while True:
     #use home constructed mothod to find center of each object identified
     yellowCenters=findCenters(yellowCones)
     blueCenters=findCenters(blueCones)
-
+    orangeCentersLeft=findCenters(orangeConesLeft)
+    orangeCentersRight=findCenters(orangeConesRight)
 
     #sort to see which object is closes
 
     sortedBlueCenter=sorted(blueCenters, key=lambda x: x[1], reverse= True)
     sortedYellowCenter=sorted(yellowCenters,key=lambda x: x[1], reverse=True)
-
-    #if len(blueCenters) >1:
-     #closestBlue=sortedBlueCenter[1]
-    if len(blueCenters) > 0:
-     closestBlue=sortedBlueCenter[0]
+    sortedOrangeCenterLeft=sorted(orangeCentersLeft,key=lambda x: x[1], reverse = True)
+    sortedOrangeCenterRight=sorted(orangeCentersRight,key=lambda x: x[1], reverse = True)
+    if len(blueCenters) >1:
+     closestBlue=numpy.array(sortedBlueCenter[1])
+    elif len(blueCenters) > 0:
+     closestBlue=numpy.array(sortedBlueCenter[0])
     else: 
-     closestBlue=(60,differenceY)
+     closestBlue=numpy.array([60,differenceY])
      noBlue=1
 
-    #if len(yellowCenters) >1:
-     #closestYellow=sortedYellowCenter[1]
-    if len(yellowCenters) >0:
-     closestYellow=sortedYellowCenter[0]
+    if len(yellowCenters) >1:
+     closestYellow=numpy.array(sortedYellowCenter[1])
+    elif len(yellowCenters) >0:
+     closestYellow=numpy.array(sortedYellowCenter[0])
     else:
-     closestYellow=(20,differenceY)
+     closestYellow=numpy.array([50,differenceY])
      noYellow=1
-    
 
     
-	
+    if len(orangeCentersLeft) >0:
+     orangeConeLeft=orangeCentersLeft[0]
+     if orangeConeLeft[1]<closestYellow[1]:
+       closestYellow[0]=orangeConeLeft[0]+minX
+       #closestYellow[0]=1*orangeConeLeft[0]
+       closestYellow[1]=orangeConeLeft[1]
+    
+    if len(orangeCentersRight) >0:
+      orangeConeRight=orangeCentersRight[0]
+      if orangeConeRight[1] < closestBlue[1]:
+       closestBlue[0]=orangeConeRight[0]+difference/2+minX
+       #closestBlue[0]=1*(orangeConeRight[0])
+       closestBlue[1]=orangeConeRight[1]
+
     res= cv2.add(yellowCones,blueCones)
 
 
@@ -221,6 +245,7 @@ while True:
     if numpy.absolute(position_y) > 0.05:
      diagonal=numpy.sqrt(position_x**2+position_y**2)
      angle=3.1415*0.5-numpy.arctan2(position_x,position_y)
+     #angle=numpy.arctan2(position_x,position_y)
     else:
      angle=0.0
 
@@ -238,9 +263,6 @@ while True:
         denominator=numpy.sqrt(closestYellow[0]**2+middlePoint**2)*closestYellow[1]
         angle=numpy.arccos(numerator/denominator)*0.5"""
 
-
-    noYellow=0
-    noBlue=0
 
 
 
@@ -294,14 +316,19 @@ while True:
     groundSteeringRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_GroundSteeringRequest()
     #groundSteeringRequest.groundSteering=0
     #error=(numpy.absolute(angle)/maximumDegree)
-    error=0.5
-    groundSteeringRequest.groundSteering =error*(0.3*angle+0.7*prevAngle)
+    
+    if noBlue + noYellow >1:
+	error=0.5
+    else:
+	error=0.5
+
+    groundSteeringRequest.groundSteering=error*(0.7*angle+0.3*prevAngle)
     prevAngle=angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
     pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
     
-    
+    """
     if distances["front"] < 0.03:
       pedalPositionRequest.position=0
     elif distances["front"] < 0.8:
@@ -310,12 +337,12 @@ while True:
         pedalPositionRequest.position=carSpeed
     else:
         pedalPositionRequest.position = carSpeed
-
+    
     """
     if distances["front"] < 0.05:
       pedalPositionRequest.position=0
     else:
         pedalPositionRequest.position = 0.09
-    """
+    
     session.send(1086, pedalPositionRequest.SerializeToString());
 
