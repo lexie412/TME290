@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python2
 
 # Copyright (C) 2018 Christian Berger
@@ -76,13 +75,18 @@ def keepDistance(distance, speed):
 
  
 fgbg=cv2.createBackgroundSubtractorMOG2(history=10,varThreshold=2,detectShadows=False)
-minX=280
-maxX=360
-minY=170
+minX=240
+maxX=320
+minY=140
 maxY=470
+#280
+#360
+#170
+#470
 difference=maxX-minX
 differenceY=maxY-minY
 prevAngle=0
+seeingOrange=0
 # Create a session to send and receive messages from a running OD4Session;
 # Replay mode: CID = 253
 # Live mode: CID = 112
@@ -114,6 +118,8 @@ upper_blue= numpy.array([150,255,255])
 lower_yellow= numpy.array([23,41,133])
 upper_yellow= numpy.array([40,150,255])
 
+lower_black=numpy.array([0,0,0])
+upper_black=numpy.array([69,69,69])
 
 lower_orange=numpy.array([3,100,20])
 upper_orange=numpy.array([6,255,255])
@@ -145,8 +151,8 @@ while True:
     img = numpy.frombuffer(buf, numpy.uint8).reshape(480, 640, 4)
     #change coord
     imgCopy=img
-    imgOrangeConeLeft=imgCopy[minX:minX+difference/2,minY:maxY]
-    imgOrangeConeRight=imgCopy[minX+difference/2:maxX, minY:maxY]
+    imgOrangeConeLeft=imgCopy[minX:maxX,minY:minY+differenceY/2]
+    imgOrangeConeRight=imgCopy[minX:maxX, minY+differenceY/2:maxY]
 
     img = img[minX:maxX, minY:maxY]
 
@@ -173,6 +179,10 @@ while True:
     orangeConesLeft=cv2.dilate(identyfiedConesOrangeLeft,kernel, iterations =1)
     orangeConesRight=cv2.dilate(identyfiedConesOrangeRight,kernel, iterations =1)
 
+     # find black
+    identyfiedcar = cv2.inRange(hsv,lower_black,upper_black)
+    kernel=numpy.ones((5,5),numpy.uint8)
+    car=cv2.dilate(identyfiedcar,kernel,iterations=1)
     #orangeCones=cv2.dilate(identyfiedConesOrange,kernel, iterations =1)
 
     #use Canny edge detection
@@ -189,6 +199,7 @@ while True:
     blueCenters=findCenters(blueCones)
     orangeCentersLeft=findCenters(orangeConesLeft)
     orangeCentersRight=findCenters(orangeConesRight)
+    blackCenters=findCenters(identyfiedcar)
 
     #sort to see which object is closes
 
@@ -196,6 +207,8 @@ while True:
     sortedYellowCenter=sorted(yellowCenters,key=lambda x: x[1], reverse=True)
     sortedOrangeCenterLeft=sorted(orangeCentersLeft,key=lambda x: x[1], reverse = True)
     sortedOrangeCenterRight=sorted(orangeCentersRight,key=lambda x: x[1], reverse = True)
+    sortedBlackCenter=sorted(blackCenters,key=lambda x: x[1], reverse = True)
+
     if len(blueCenters) >1:
      closestBlue=numpy.array(sortedBlueCenter[1])
     elif len(blueCenters) > 0:
@@ -212,13 +225,22 @@ while True:
      closestYellow=numpy.array([50,differenceY])
      noYellow=1
 
-    
+    if len(blackCenters) >1:
+     closestBlack=sortedBlackCenter[1]
+    if len(blackCenters) >0:
+     closestBlack=sortedBlackCenter[0]
+    else:
+     closestBlack=(20,differenceY)
+     noBlack=1
+
+
     if len(orangeCentersLeft) >0:
      orangeConeLeft=orangeCentersLeft[0]
      if orangeConeLeft[1]<closestYellow[1]:
        closestYellow[0]=orangeConeLeft[0]+minX
        #closestYellow[0]=1*orangeConeLeft[0]
        closestYellow[1]=orangeConeLeft[1]
+       seeingOrange=1
     
     if len(orangeCentersRight) >0:
       orangeConeRight=orangeCentersRight[0]
@@ -226,6 +248,7 @@ while True:
        closestBlue[0]=orangeConeRight[0]+difference/2+minX
        #closestBlue[0]=1*(orangeConeRight[0])
        closestBlue[1]=orangeConeRight[1]
+       seeingOrange=1
 
     res= cv2.add(yellowCones,blueCones)
 
@@ -318,16 +341,31 @@ while True:
     #error=(numpy.absolute(angle)/maximumDegree)
     
     if noBlue + noYellow >1:
-	error=0.5
+	error=0.7
     else:
 	error=0.5
+
+
+    if seeingOrange==1:
+	error=0.01
+	seeingOrange=0
+    
 
     groundSteeringRequest.groundSteering=error*(0.7*angle+0.3*prevAngle)
     prevAngle=angle
     session.send(1090, groundSteeringRequest.SerializeToString());
     # Uncomment the following lines to accelerate/decelerate; range: +0.25 (forward) .. -1.0 (backwards).
     pedalPositionRequest = opendlv_standard_message_set_v0_9_6_pb2.opendlv_proxy_PedalPositionRequest()
-    
+
+    #when it sees a car
+    if closestBlack[1] < 300:
+     pedalPositionRequest.position=0
+   # elif closestBlack[1] > 390:
+    # pedalPositionRequest.position = 0.09      
+    else:
+     pedalPositionRequest.position=0.09
+
+ 
     """
     if distances["front"] < 0.03:
       pedalPositionRequest.position=0
@@ -341,8 +379,8 @@ while True:
     """
     if distances["front"] < 0.05:
       pedalPositionRequest.position=0
-    else:
-        pedalPositionRequest.position = 0.09
+    """else:
+        pedalPositionRequest.position = 0.09"""
     
     session.send(1086, pedalPositionRequest.SerializeToString());
 
